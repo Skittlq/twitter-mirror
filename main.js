@@ -299,7 +299,7 @@ const checkForNewTweets = async () => {
     userDataDir: "./user_data", // Persistent session storage
   });
   const page = await browser.newPage();
-  page.setDefaultNavigationTimeout(60000); // 60 seconds
+  page.setDefaultNavigationTimeout(120000); // 120 seconds
   await page.setRequestInterception(true);
   page.on("request", (req) => {
     const resourceType = req.resourceType();
@@ -314,20 +314,18 @@ const checkForNewTweets = async () => {
     // First, navigate to your timeline to check if you're already logged in
     console.log("Checking if session is active...");
     await page.goto(`https://x.com/${X_USERNAME}`, {
-      waitUntil: "networkidle2",
+      waitUntil: "domcontentloaded",
     });
 
     await new Promise((r) => setTimeout(r, 10000));
 
     // Look for a login selector. If found, then you're not logged in.
     const loginInput = await page.$('input[name="text"]');
-
-    console.log(loginInput ? true : false);
     if (loginInput) {
       console.log("Session not active, logging in...");
 
       // Navigate to the login page
-      await page.goto("https://x.com/login", { waitUntil: "networkidle2" });
+      await page.goto("https://x.com/login", { waitUntil: "domcontentloaded" });
 
       // Perform the login steps
       await page.waitForSelector('input[name="text"]', { visible: true });
@@ -344,7 +342,7 @@ const checkForNewTweets = async () => {
 
       // After logging in, go to your timeline
       await page.goto(`https://x.com/${X_USERNAME}`, {
-        waitUntil: "networkidle2",
+        waitUntil: "domcontentloaded",
       });
     } else {
       console.log("Session active, skipping login...");
@@ -377,7 +375,7 @@ const checkForNewTweets = async () => {
     }
 
     console.log("Opening full tweet page:", tweetURL);
-    await page.goto(tweetURL, { waitUntil: "networkidle2" });
+    await page.goto(tweetURL, { waitUntil: "domcontentloaded" });
 
     console.log("Waiting for full tweet content to load...");
     await page.waitForSelector('[data-testid="tweetText"]', { visible: true });
