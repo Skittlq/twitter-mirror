@@ -410,7 +410,7 @@ const checkForNewTweets = async () => {
 
 // Define the interval (in ms)
 // Note: Adjust the value as needed. Here, it's set to 1 minute (60,000 ms)
-const intervalTime = 1 * 60 * 1000; // 1 minute
+const intervalTime = 5 * 60 * 1000; // 1 minute
 // For 10 minutes, you could use: const intervalTime = 10 * 60 * 1000;
 
 const runScript = async () => {
