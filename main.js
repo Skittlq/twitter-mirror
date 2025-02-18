@@ -299,20 +299,23 @@ const checkForNewTweets = async () => {
     userDataDir: "./user_data", // Persistent session storage
   });
   const page = await browser.newPage();
-  await page.setUserAgent(
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-  );
-  await page.setViewport({ width: 1280, height: 800 });
 
-  page.setDefaultNavigationTimeout(120000); // 120 seconds
-  await page.setRequestInterception(true);
+  page.setDefaultNavigationTimeout(60000); // 120 seconds
+
+  page.on("console", (msg) => {
+    console.log("PAGE LOG:", msg.text());
+  });
+
   page.on("request", (req) => {
-    const resourceType = req.resourceType();
-    if (["image", "stylesheet", "font"].includes(resourceType)) {
-      req.abort();
-    } else {
-      req.continue();
-    }
+    console.log("Request:", req.method(), req.url());
+  });
+
+  page.on("response", (response) => {
+    console.log("Response:", response.status(), response.url());
+  });
+
+  page.on("requestfailed", (request) => {
+    console.log("Request failed:", request.url(), request.failure().errorText);
   });
 
   try {
@@ -321,14 +324,14 @@ const checkForNewTweets = async () => {
     await page.goto(`https://x.com/${X_USERNAME}`, {
       waitUntil: "domcontentloaded",
     });
-    console.log(page.url());
 
     await new Promise((r) => setTimeout(r, 10000));
-    console.log(page.url());
+    await page.screenshot({ path: "debug_screenshot.png", fullPage: true });
+    const pageContent = await page.content();
+    fs.writeFileSync("debug_page.html", pageContent);
 
     // Look for a login selector. If found, then you're not logged in.
     const loginInput = await page.$('input[name="text"]');
-    console.log(page.url());
     if (loginInput) {
       console.log("Session not active, logging in...");
 
