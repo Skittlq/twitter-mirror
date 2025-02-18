@@ -321,17 +321,21 @@ const checkForNewTweets = async () => {
     await page.goto(`https://x.com/${X_USERNAME}`, {
       waitUntil: "domcontentloaded",
     });
+    console.log(page.url());
 
     await new Promise((r) => setTimeout(r, 10000));
+    console.log(page.url());
 
     // Look for a login selector. If found, then you're not logged in.
     const loginInput = await page.$('input[name="text"]');
+    console.log(page.url());
     if (loginInput) {
       console.log("Session not active, logging in...");
 
       // Navigate to the login page
       await page.goto("https://x.com/login", { waitUntil: "domcontentloaded" });
 
+      console.log(page.url());
       // Perform the login steps
       await page.waitForSelector('input[name="text"]', { visible: true });
       await page.type('input[name="text"]', X_USERNAME);
