@@ -321,6 +321,8 @@ const checkForNewTweets = async () => {
 
     // Look for a login selector. If found, then you're not logged in.
     const loginInput = await page.$('input[name="text"]');
+
+    console.log(loginInput ? true : false);
     if (loginInput) {
       console.log("Session not active, logging in...");
 
