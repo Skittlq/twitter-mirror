@@ -314,7 +314,7 @@ const checkForNewTweets = async () => {
     // First, navigate to your timeline to check if you're already logged in
     console.log("Checking if session is active...");
     await page.goto(`https://x.com/${X_USERNAME}`, {
-      waitUntil: "domcontentloaded",
+      waitUntil: "networkidle2",
     });
 
     await new Promise((r) => setTimeout(r, 10000));
@@ -325,7 +325,7 @@ const checkForNewTweets = async () => {
       console.log("Session not active, logging in...");
 
       // Navigate to the login page
-      await page.goto("https://x.com/login", { waitUntil: "domcontentloaded" });
+      await page.goto("https://x.com/login", { waitUntil: "networkidle2" });
 
       // Perform the login steps
       await page.waitForSelector('input[name="text"]', { visible: true });
@@ -342,7 +342,7 @@ const checkForNewTweets = async () => {
 
       // After logging in, go to your timeline
       await page.goto(`https://x.com/${X_USERNAME}`, {
-        waitUntil: "domcontentloaded",
+        waitUntil: "networkidle2",
       });
     } else {
       console.log("Session active, skipping login...");
@@ -375,7 +375,7 @@ const checkForNewTweets = async () => {
     }
 
     console.log("Opening full tweet page:", tweetURL);
-    await page.goto(tweetURL, { waitUntil: "domcontentloaded" });
+    await page.goto(tweetURL, { waitUntil: "networkidle2" });
 
     console.log("Waiting for full tweet content to load...");
     await page.waitForSelector('[data-testid="tweetText"]', { visible: true });
