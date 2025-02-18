@@ -299,6 +299,16 @@ const checkForNewTweets = async () => {
     userDataDir: "./user_data", // Persistent session storage
   });
   const page = await browser.newPage();
+  page.setDefaultNavigationTimeout(60000); // 60 seconds
+  await page.setRequestInterception(true);
+  page.on("request", (req) => {
+    const resourceType = req.resourceType();
+    if (["image", "stylesheet", "font"].includes(resourceType)) {
+      req.abort();
+    } else {
+      req.continue();
+    }
+  });
 
   try {
     // First, navigate to your timeline to check if you're already logged in
