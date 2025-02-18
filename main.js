@@ -326,9 +326,6 @@ const checkForNewTweets = async () => {
     });
 
     await new Promise((r) => setTimeout(r, 10000));
-    await page.screenshot({ path: "debug_screenshot.png", fullPage: true });
-    const pageContent = await page.content();
-    fs.writeFileSync("debug_page.html", pageContent);
 
     // Look for a login selector. If found, then you're not logged in.
     const loginInput = await page.$('input[name="text"]');
