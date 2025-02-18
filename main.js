@@ -295,7 +295,7 @@ const postToTumblr = async (text, images = []) => {
 
 const checkForNewTweets = async () => {
   const browser = await puppeteer.launch({
-    headless: false,
+    headless: true,
     userDataDir: "./user_data", // Persistent session storage
   });
   const page = await browser.newPage();
