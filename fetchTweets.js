@@ -76,57 +76,62 @@ const checkForNewTweets = async () => {
                 const usernameLinkEnd =
                   usernameLinkStart + usernameLinkText.length;
 
-                return {
-                  text: textField,
-                  images: [],
+                return [
+                  {
+                    text: textField,
+                    images: [],
+                    quote: tweet?.quoted_status_permalink?.expanded || null,
+                    url: `https://x.com/${username}/status/${tweetId}`,
+                    retweeted: true,
+                    quote_retweeted: tweet?.quoted_status_permalink?.expanded
+                      ? true
+                      : false,
+                    urls: [
+                      {
+                        display_url: `x.com/${username}`,
+                        expanded_url: `https://x.com/${username}`,
+                        url: `https://x.com/${username}`, // Replace with the shortened t.co URL if available
+                        indices: [usernameLinkStart, usernameLinkEnd],
+                      },
+                      // Add the original tweet URL to the URLs array
+                      {
+                        display_url: `x.com/${username}/status/${tweetId}`,
+                        expanded_url: `https://x.com/${username}/status/${tweetId}`,
+                        url: `https://x.com/${username}/status/${tweetId}`, // Replace with the shortened t.co URL if available
+                        indices: [
+                          usernameLinkEnd + 2 + "Original Tweet: ".length,
+                          usernameLinkEnd +
+                            2 +
+                            "Original Tweet: ".length +
+                            `https://x.com/${username}/status/${tweetId}`
+                              .length,
+                        ],
+                      },
+                    ],
+                  },
+                ];
+              }
+
+              return [
+                {
+                  text: tweet?.full_text.replace(/https:\/\/t\.co\/\w+/g, ""),
+                  images:
+                    tweet?.extended_entities?.media.map((media) =>
+                      media.media_url_https.startsWith(
+                        "https://pbs.twimg.com/ext_tw_video_thumb"
+                      )
+                        ? media.video_info.variants[3].url
+                        : media.media_url_https
+                    ) || [],
                   quote: tweet?.quoted_status_permalink?.expanded || null,
-                  url: `https://x.com/${username}/status/${tweetId}`,
-                  retweeted: true,
+                  url: `https://x.com/${X_USERNAME}/status/${tweetId}`,
+                  retweeted: isRetweeted || false,
                   quote_retweeted: tweet?.quoted_status_permalink?.expanded
                     ? true
                     : false,
-                  urls: [
-                    {
-                      display_url: `x.com/${username}`,
-                      expanded_url: `https://x.com/${username}`,
-                      url: `https://x.com/${username}`, // Replace with the shortened t.co URL if available
-                      indices: [usernameLinkStart, usernameLinkEnd],
-                    },
-                    // Add the original tweet URL to the URLs array
-                    {
-                      display_url: `x.com/${username}/status/${tweetId}`,
-                      expanded_url: `https://x.com/${username}/status/${tweetId}`,
-                      url: `https://x.com/${username}/status/${tweetId}`, // Replace with the shortened t.co URL if available
-                      indices: [
-                        usernameLinkEnd + 2 + "Original Tweet: ".length,
-                        usernameLinkEnd +
-                          2 +
-                          "Original Tweet: ".length +
-                          `https://x.com/${username}/status/${tweetId}`.length,
-                      ],
-                    },
-                  ],
-                };
-              }
-
-              return {
-                text: tweet?.full_text.replace(/https:\/\/t\.co\/\w+/g, ""),
-                images:
-                  tweet?.extended_entities?.media.map((media) =>
-                    media.media_url_https.startsWith(
-                      "https://pbs.twimg.com/ext_tw_video_thumb"
-                    )
-                      ? media.video_info.variants[3].url
-                      : media.media_url_https
-                  ) || [],
-                quote: tweet?.quoted_status_permalink?.expanded || null,
-                url: `https://x.com/${X_USERNAME}/status/${tweetId}`,
-                retweeted: isRetweeted || false,
-                quote_retweeted: tweet?.quoted_status_permalink?.expanded
-                  ? true
-                  : false,
-                urls: tweet?.entities?.urls || [],
-              };
+                  urls: tweet?.entities?.urls || [],
+                },
+              ];
             } else if (entryType === "profile-conversation") {
               const tweetsWithReplies = entry?.content?.items;
 
@@ -205,7 +210,7 @@ const checkForNewTweets = async () => {
 
     // For each finalOrganisedTweets, check if the item is an array, if so then get the last item of the array and navigate to the url of the tweet and intercept the https://x.com/i/api/graphql/Ez6kRPyXbqNlhBwcNMpU-Q/TweetDetail request's response
     for (const [index, tweet] of finalOrganisedTweets.entries()) {
-      if (Array.isArray(tweet)) {
+      if (Array.isArray(tweet) && tweet.length > 1) {
         const lastTweet = tweet[tweet.length - 1];
         await page.goto(lastTweet.url, { waitUntil: "domcontentloaded" });
 
