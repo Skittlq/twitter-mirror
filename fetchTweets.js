@@ -1,5 +1,6 @@
 import puppeteer from "puppeteer";
 import dotenv from "dotenv";
+import fs from "fs";
 
 dotenv.config();
 
@@ -9,7 +10,7 @@ const X_PASSWORD = process.env.X_PASSWORD;
 const checkForNewTweets = async () => {
   let finalOrganisedTweets = [];
   const browser = await puppeteer.launch({
-    headless: false,
+    headless: true,
     userDataDir: "./user_data", // Persistent session storage
   });
   const page = await browser.newPage();
@@ -61,15 +62,50 @@ const checkForNewTweets = async () => {
               const isRetweeted = tweet?.retweeted === true;
 
               if (isRetweeted) {
+                const retweetedUser =
+                  tweet?.retweeted_status_result?.result?.core?.user_results
+                    ?.result?.legacy;
+                const username = retweetedUser?.screen_name;
+
+                // Construct plain-text content: "RT @username" followed by the original tweet text
+                const textField = `Retweet from \n\nOriginal Tweet: `;
+
+                // "Retweet from " is 13 characters.
+                const usernameLinkStart = 13;
+                const usernameLinkText = `https://x.com/${username}`;
+                const usernameLinkEnd =
+                  usernameLinkStart + usernameLinkText.length;
+
                 return {
-                  text: `Retweet @${tweet?.retweeted_status_result?.result?.core?.user_results?.result?.legacy?.screen_name} (https://x.com/${tweet?.retweeted_status_result?.result?.core?.user_results?.result?.legacy?.screen_name})`,
+                  text: textField,
                   images: [],
                   quote: tweet?.quoted_status_permalink?.expanded || null,
-                  url: `https://x.com/${tweet?.retweeted_status_result?.result?.core?.user_results?.result?.legacy?.screen_name}/status/${tweetId}`,
-                  retweeted: isRetweeted || false,
+                  url: `https://x.com/${username}/status/${tweetId}`,
+                  retweeted: true,
                   quote_retweeted: tweet?.quoted_status_permalink?.expanded
                     ? true
                     : false,
+                  urls: [
+                    {
+                      display_url: `x.com/${username}`,
+                      expanded_url: `https://x.com/${username}`,
+                      url: `https://x.com/${username}`, // Replace with the shortened t.co URL if available
+                      indices: [usernameLinkStart, usernameLinkEnd],
+                    },
+                    // Add the original tweet URL to the URLs array
+                    {
+                      display_url: `x.com/${username}/status/${tweetId}`,
+                      expanded_url: `https://x.com/${username}/status/${tweetId}`,
+                      url: `https://x.com/${username}/status/${tweetId}`, // Replace with the shortened t.co URL if available
+                      indices: [
+                        usernameLinkEnd + 2 + "Original Tweet: ".length,
+                        usernameLinkEnd +
+                          2 +
+                          "Original Tweet: ".length +
+                          `https://x.com/${username}/status/${tweetId}`.length,
+                      ],
+                    },
+                  ],
                 };
               }
 
@@ -89,6 +125,7 @@ const checkForNewTweets = async () => {
                 quote_retweeted: tweet?.quoted_status_permalink?.expanded
                   ? true
                   : false,
+                urls: tweet?.entities?.urls || [],
               };
             } else if (entryType === "profile-conversation") {
               const tweetsWithReplies = entry?.content?.items;
@@ -116,6 +153,7 @@ const checkForNewTweets = async () => {
                     : false,
                   retweeted: tweet?.retweeted,
                   url: `https://twitter.com/${X_USERNAME}/status/${tweetId}`,
+                  urls: tweet?.entities?.urls || [],
                 };
               });
             } else {
@@ -211,6 +249,7 @@ const checkForNewTweets = async () => {
                     quote_retweeted: tweet?.quoted_status_permalink?.expanded
                       ? true
                       : false,
+                    urls: tweet?.entities?.urls || [],
                   };
                 }
               );

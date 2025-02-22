@@ -1,30 +1,38 @@
-import AtpAgent from "@atproto/api";
-import splitTextIntoChunks from "../helpers/splitTextIntoChunks";
+import { AtpAgent } from "@atproto/api";
+import splitTextIntoChunks from "../helpers/splitTextIntoChunks.js";
 const BSKY_HANDLE = process.env.BSKY_HANDLE;
 const BSKY_APP_PASSWORD = process.env.BSKY_APP_PASSWORD;
 
-const postToBluesky = async (text, images) => {
+const postTweetsToBluesky = async (tweets) => {
   const agent = new AtpAgent({ service: "https://bsky.social" });
 
   try {
-    console.log("Logging into Bluesky...");
     await agent.login({ identifier: BSKY_HANDLE, password: BSKY_APP_PASSWORD });
 
-    // Function to clean up links and remove Twitter ellipses
-    const cleanText = (inputText) => {
-      return inputText.replace(/\bhttps?:\/\/\S+…/g, (match) =>
-        match.replace(/…$/, "")
-      );
+    const cleanText = (inputText, urls = []) => {
+      let workingText = inputText;
+
+      // Sort URLs by their start index in descending order to avoid messing up indices while inserting.
+      urls.sort((a, b) => b.indices[0] - a.indices[0]);
+
+      // Insert URLs into the text at the correct positions.
+      urls.forEach((urlObj) => {
+        const start = urlObj.indices[0];
+        const urlText = urlObj.expanded_url;
+        workingText =
+          workingText.slice(0, start) + urlText + workingText.slice(start);
+      });
+
+      return workingText;
     };
 
-    // Extract hashtags and links with positions
-    const extractFacets = (inputText) => {
+    const extractFacets = (inputText, urls = []) => {
       let facets = [];
-      let cleanText = inputText;
+      let workingText = inputText;
 
-      // Find links
+      // Extract links from text using regex.
       const linkRegex = /\bhttps?:\/\/[^\s]+/g;
-      cleanText = cleanText.replace(linkRegex, (match, offset) => {
+      workingText = workingText.replace(linkRegex, (match, offset) => {
         facets.push({
           index: { byteStart: offset, byteEnd: offset + match.length },
           features: [{ $type: "app.bsky.richtext.facet#link", uri: match }],
@@ -32,94 +40,132 @@ const postToBluesky = async (text, images) => {
         return match;
       });
 
-      // Find hashtags
+      // Extract hashtags.
       const hashtagRegex = /#[A-Za-z0-9_]+/g;
-      cleanText = cleanText.replace(hashtagRegex, (match, offset) => {
+      workingText = workingText.replace(hashtagRegex, (match, offset) => {
         facets.push({
           index: { byteStart: offset, byteEnd: offset + match.length },
           features: [
             {
               $type: "app.bsky.richtext.facet#tag",
-              tag: match.slice(1), // removes the '#' character
+              tag: match.slice(1),
             },
           ],
         });
         return match;
       });
 
-      return { cleanText, facets };
+      // Add URL facets from tweet.urls.
+      if (urls && Array.isArray(urls)) {
+        urls.forEach((urlObj) => {
+          if (urlObj.indices && urlObj.indices.length === 2) {
+            facets.push({
+              index: {
+                byteStart: urlObj.indices[0],
+                byteEnd: urlObj.indices[0] + urlObj.expanded_url.length,
+              },
+              features: [
+                {
+                  $type: "app.bsky.richtext.facet#link",
+                  uri: urlObj.expanded_url,
+                },
+              ],
+            });
+          }
+        });
+      }
+
+      return { cleanText: workingText, facets };
     };
 
-    // Process text
-    text = cleanText(text);
-    let { cleanText: processedText, facets } = extractFacets(text);
-    let chunks = splitTextIntoChunks(processedText, 290);
+    const postTweetThread = async (
+      tweet,
+      parentReply = null,
+      threadRoot = null
+    ) => {
+      let rootPostUri = threadRoot ? threadRoot.uri : null;
+      let rootPostCid = threadRoot ? threadRoot.cid : null;
+      let previousPost = parentReply ? parentReply : null;
 
-    let rootPostUri = null;
-    let rootPostCid = null;
-    let previousPostUri = null;
-    let previousPostCid = null;
+      // Pass tweet.urls to add facets for separated URLs.
+      const { cleanText: processedText, facets } = extractFacets(
+        cleanText(tweet.text, tweet.urls),
+        tweet.urls
+      );
+      const chunks = splitTextIntoChunks(processedText, 290);
 
-    for (let i = 0; i < chunks.length; i++) {
-      let chunk = chunks[i];
+      for (let i = 0; i < chunks.length; i++) {
+        let chunk = chunks[i];
+        if (chunks.length > 1 && i === 0) {
+          chunk = chunk + " 🧵";
+        }
 
-      // Only add the thread emoji if there is more than one chunk and this is the first chunk
-      if (chunks.length > 1 && i === 0) {
-        chunk = chunk + " 🧵";
-      }
-
-      let postData = {
-        text: chunk,
-        createdAt: new Date().toISOString(),
-        facets: facets.filter((facet) => facet.index.byteStart < chunk.length), // Apply only relevant facets
-      };
-
-      // Attach images only to the first post
-      if (images.length > 0 && rootPostUri === null) {
-        console.log("Uploading images to Bluesky...");
-        const uploadedImages = await Promise.all(
-          images.map(async (url) => {
-            const res = await fetch(url);
-            const imageBuffer = await res.arrayBuffer();
-            return await agent.uploadBlob(new Uint8Array(imageBuffer), {
-              encoding: "image/png",
-            });
-          })
-        );
-
-        postData.embed = {
-          $type: "app.bsky.embed.images",
-          images: uploadedImages.map((img) => ({
-            image: img.data.blob,
-            alt: "Tweet Image",
-          })),
+        let postData = {
+          text: chunk,
+          createdAt: new Date().toISOString(),
+          facets: facets.filter(
+            (facet) => facet.index.byteStart < chunk.length
+          ),
         };
+
+        if (i === 0 && tweet.images && tweet.images.length > 0) {
+          const uploadedImages = await Promise.all(
+            tweet.images.map(async (url) => {
+              const res = await fetch(url);
+              const imageBuffer = await res.arrayBuffer();
+              return await agent.uploadBlob(new Uint8Array(imageBuffer), {
+                encoding: "image/png",
+              });
+            })
+          );
+          postData.embed = {
+            $type: "app.bsky.embed.images",
+            images: uploadedImages.map((img) => ({
+              image: img.data.blob,
+              alt: "Tweet Image",
+            })),
+          };
+        }
+
+        if (previousPost) {
+          postData.reply = {
+            root: { uri: rootPostUri, cid: rootPostCid },
+            parent: { uri: previousPost.uri, cid: previousPost.cid },
+          };
+        }
+
+        const response = await agent.post(postData);
+
+        if (!rootPostUri) {
+          rootPostUri = response.uri;
+          rootPostCid = response.cid;
+        }
+        previousPost = { uri: response.uri, cid: response.cid };
       }
+      return { uri: rootPostUri, cid: rootPostCid, last: previousPost };
+    };
 
-      // Thread handling
-      if (previousPostUri) {
-        postData.reply = {
-          root: { uri: rootPostUri, cid: rootPostCid },
-          parent: { uri: previousPostUri, cid: previousPostCid },
-        };
+    for (const tweetData of tweets) {
+      try {
+        if (Array.isArray(tweetData)) {
+          let threadInfo = null;
+          for (const tweet of tweetData) {
+            threadInfo = await postTweetThread(
+              tweet,
+              threadInfo ? threadInfo.last : null,
+              threadInfo ? { uri: threadInfo.uri, cid: threadInfo.cid } : null
+            );
+          }
+        } else {
+          await postTweetThread(tweetData);
+        }
+      } catch (error) {
+        console.error("❌ Error posting a tweet:", error);
       }
-
-      console.log("Posting chunk to Bluesky:", chunk);
-      const response = await agent.post(postData);
-
-      if (!rootPostUri) {
-        rootPostUri = response.uri;
-        rootPostCid = response.cid;
-      }
-
-      previousPostUri = response.uri;
-      previousPostCid = response.cid;
-
-      console.log("✅ Successfully posted a chunk!");
     }
   } catch (error) {
-    console.error("❌ Error posting to Bluesky:", error);
+    console.error("❌ Error logging into Bluesky:", error);
   }
 };
 
-export default postToBluesky;
+export default postTweetsToBluesky;
