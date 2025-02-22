@@ -27,6 +27,7 @@ const runScript = async () => {
       postedTweets = JSON.parse(data);
     } else {
       // Create the file if it doesn't exist
+      fs.mkdirSync(path.dirname(postedTweetsPath), { recursive: true });
       fs.writeFileSync(
         postedTweetsPath,
         JSON.stringify(postedTweets, null, 2),
